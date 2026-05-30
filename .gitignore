@@ -1,0 +1,7 @@
+.env
+chroma_db/
+crm.db
+exports/
+__pycache__/
+docs/
+*.pyc
