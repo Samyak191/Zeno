@@ -1,3 +1,4 @@
+from crm import save_message, upsert_lead, upsert_order, get_history, get_all_leads, get_orders
 from apscheduler.schedulers.background import BackgroundScheduler
 from whatsapp_notify import send_daily_report
 from pdf_export import generate_leads_pdf
@@ -74,8 +75,10 @@ async def chat(
     save_message(session_id, "user",      message)
     save_message(session_id, "assistant", reply)
     _extract_and_save_lead(session_id, message + " " + reply, channel, config)
+    _extract_order_details(session_id, client_id, message + " " + reply)
 
     return JSONResponse({"reply": reply, "session_id": session_id})
+
 
 
 # ── PDF upload ─────────────────────────────────────────────────
@@ -140,12 +143,28 @@ async def admin(client_id: str = "demo_client"):
         f'<option value="{c}" {"selected" if c == client_id else ""}>{c}</option>'
         for c in clients_raw
     )
-    rows = "".join(
+    lead_rows = "".join(
         f"<tr><td>{l.name or '—'}</td><td>{l.phone or '—'}</td>"
         f"<td>{l.email or '—'}</td><td>{l.channel}</td>"
         f"<td>{l.created.strftime('%d %b %H:%M')}</td></tr>"
         for l in leads
-    )
+)
+
+    orders     = get_orders(client_id)
+    order_rows = "".join(
+        f"<tr>"
+        f"<td>{o.customer_name or '—'}</td>"
+        f"<td>{o.phone or '—'}</td>"
+        f"<td>{o.item or '—'}</td>"
+        f"<td>{o.quantity or '—'}</td>"
+        f"<td>{o.delivery_date or '—'} {o.delivery_time or ''}</td>"
+        f"<td>{o.special_request or '—'}</td>"
+        f"<td><span style='color:{'#0ACF83' if o.status == 'pending' else '#aaa'}'>{o.status}</span></td>"
+        f"<td>{o.created.strftime('%d %b %H:%M')}</td>"
+        f"</tr>"
+        for o in orders
+)
+
     brand = config.get("brand_color", "#0ACF83")
     return f"""
     <html><head><title>Zeno Admin — {config['bot_name']}</title>
@@ -206,7 +225,18 @@ async def admin(client_id: str = "demo_client"):
       <h2>Leads — {len(leads)} total</h2>
       <table>
         <tr><th>Name</th><th>Phone</th><th>Email</th><th>Channel</th><th>Time</th></tr>
-        {rows if rows else '<tr><td colspan="5" class="empty">No leads yet</td></tr>'}
+        {lead_rows if lead_rows else '<tr><td colspan="5" class="empty">No leads yet</td></tr>'}
+      </table>
+    </div>
+    <div class="card">
+      <h2>Orders — {len(orders)} total</h2>
+      <table>
+        <tr>
+          <th>Name</th><th>Phone</th><th>Item</th>
+          <th>Qty</th><th>Delivery</th><th>Special request</th>
+          <th>Status</th><th>Time</th>
+        </tr>
+        {order_rows if order_rows else '<tr><td colspan="8" class="empty">No orders yet</td></tr>'}
       </table>
     </div>
 
@@ -302,3 +332,53 @@ async def trigger_report(client_id: str):
         return JSONResponse({"error": "No owner_phone in config"}, status_code=400)
     send_daily_report(client_id, owner_phone)
     return {"status": "sent", "to": owner_phone}
+
+
+
+
+def _extract_order_details(session_id: str, client_id: str, conversation: str):
+    """Extract order details from conversation using Groq"""
+    config = load_config(client_id)
+    if config.get("industry") not in ["food", "bakery", "restaurant"]:
+        return
+
+    extraction_prompt = f"""Extract order details from this conversation. 
+Return ONLY a JSON object with these fields (use null if not found):
+{{
+  "customer_name": null,
+  "phone": null,
+  "item": null,
+  "quantity": null,
+  "delivery_date": null,
+  "delivery_time": null,
+  "special_request": null
+}}
+
+Conversation:
+{conversation[-2000:]}
+
+Return ONLY the JSON, nothing else."""
+
+    try:
+        response = groq.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": extraction_prompt}],
+            max_tokens=200,
+            temperature=0
+        )
+        raw  = response.choices[0].message.content.strip()
+        raw  = raw.replace("```json", "").replace("```", "").strip()
+        data = json.loads(raw)
+        upsert_order(
+            session_id=session_id,
+            client_id=client_id,
+            customer_name=data.get("customer_name"),
+            phone=data.get("phone"),
+            item=data.get("item"),
+            quantity=data.get("quantity"),
+            delivery_date=data.get("delivery_date"),
+            delivery_time=data.get("delivery_time"),
+            special_request=data.get("special_request")
+        )
+    except Exception as e:
+        print(f"Order extraction error: {e}")
