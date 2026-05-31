@@ -1,3 +1,13 @@
+import json
+import os
+
+def load_config(client_id: str) -> dict:
+    path = f"configs/{client_id}.json"
+    if not os.path.exists(path):
+        path = "configs/demo_client.json"
+    with open(path) as f:
+        return json.load(f)
+
 def build_system_prompt(config: dict, context: str = "") -> str:
     forbidden  = ", ".join(config.get("forbidden_topics", [])) or "none"
     handoff    = config.get("handoff_trigger", "emergency, urgent")
