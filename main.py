@@ -222,7 +222,13 @@ async def admin(client_id: str = "demo_client"):
     </div>
 
     <div class="card">
-      <h2>Leads — {len(leads)} total</h2>
+    <h2>Leads — {len(leads)} total</h2>
+    <a href="/download-leads/{client_id}" 
+        style="display:inline-block;margin-bottom:12px;padding:8px 18px;
+            background:{brand};color:#fff;border-radius:8px;
+            font-size:13px;text-decoration:none">
+        Download PDF
+    </a>
       <table>
         <tr><th>Name</th><th>Phone</th><th>Email</th><th>Channel</th><th>Time</th></tr>
         {lead_rows if lead_rows else '<tr><td colspan="5" class="empty">No leads yet</td></tr>'}
@@ -332,6 +338,16 @@ async def trigger_report(client_id: str):
         return JSONResponse({"error": "No owner_phone in config"}, status_code=400)
     send_daily_report(client_id, owner_phone)
     return {"status": "sent", "to": owner_phone}
+@app.get("/download-leads/{client_id}")
+async def download_leads(client_id: str):
+    from pdf_export import generate_leads_pdf
+    from datetime import datetime
+    path = generate_leads_pdf(client_id, datetime.utcnow())
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        filename=f"{client_id}_leads_{datetime.utcnow().strftime('%Y-%m-%d')}.pdf"
+    )
 
 
 
@@ -456,3 +472,4 @@ Return ONLY the JSON, nothing else."""
         )
     except Exception as e:
         print(f"Order extraction error: {e}")
+
