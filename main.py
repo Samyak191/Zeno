@@ -232,9 +232,9 @@ async def admin(client_id: str = "demo_client"):
       <h2>Orders — {len(orders)} total</h2>
       <table>
         <tr>
-          <th>Name</th><th>Phone</th><th>Item</th>
-          <th>Qty</th><th>Delivery</th><th>Special request</th>
-          <th>Status</th><th>Time</th>
+            <th>Name</th><th>Phone</th><th>Property / Item</th>
+            <th>BHK / Qty</th><th>Site Visit / Delivery</th><th>Location / Special request</th>
+            <th>Status</th><th>Time</th>
         </tr>
         {order_rows if order_rows else '<tr><td colspan="8" class="empty">No orders yet</td></tr>'}
       </table>
@@ -337,10 +337,84 @@ async def trigger_report(client_id: str):
 
 
 def _extract_order_details(session_id: str, client_id: str, conversation: str):
-    """Extract order details from conversation using Groq"""
-    config = load_config(client_id)
-    if config.get("industry") not in ["food", "bakery", "restaurant"]:
+    config   = load_config(client_id)
+    industry = config.get("industry", "general")
+    if industry not in ["food", "bakery", "restaurant", "realestate", "real estate", "property"]:
         return
+
+    is_realestate = industry in ["realestate", "real estate", "property"]
+
+    if is_realestate:
+        extraction_prompt = f"""Extract property lead details from this conversation.
+Return ONLY a JSON object with these fields (use null if not found):
+{{
+  "customer_name": null,
+  "phone": null,
+  "item": null,
+  "quantity": null,
+  "delivery_date": null,
+  "delivery_time": null,
+  "special_request": null,
+  "property_type": null,
+  "budget": null,
+  "location_preference": null,
+  "bhk_preference": null,
+  "site_visit_date": null,
+  "timeline": null
+}}
+
+Conversation:
+{conversation[-3000:]}
+
+Return ONLY the JSON, nothing else."""
+    else:
+        extraction_prompt = f"""Extract order details from this conversation.
+Return ONLY a JSON object with these fields (use null if not found):
+{{
+  "customer_name": null,
+  "phone": null,
+  "item": null,
+  "quantity": null,
+  "delivery_date": null,
+  "delivery_time": null,
+  "special_request": null
+}}
+
+Conversation:
+{conversation[-2000:]}
+
+Return ONLY the JSON, nothing else."""
+
+    try:
+        response = groq.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": extraction_prompt}],
+            max_tokens=300,
+            temperature=0
+        )
+        raw  = response.choices[0].message.content.strip()
+        raw  = raw.replace("```json", "").replace("```", "").strip()
+        data = json.loads(raw)
+        upsert_order(
+            session_id=session_id,
+            client_id=client_id,
+            customer_name=data.get("customer_name"),
+            phone=data.get("phone"),
+            item=data.get("item") or data.get("property_type"),
+            quantity=data.get("quantity") or data.get("bhk_preference"),
+            delivery_date=data.get("delivery_date") or data.get("site_visit_date"),
+            delivery_time=data.get("delivery_time") or data.get("timeline"),
+            special_request=data.get("special_request") or data.get("location_preference"),
+        )
+        if data.get("customer_name") or data.get("phone"):
+            upsert_lead(
+                session_id=session_id,
+                name=data.get("customer_name"),
+                phone=data.get("phone"),
+                channel="web"
+            )
+    except Exception as e:
+        print(f"Order extraction error: {e}")
 
     extraction_prompt = f"""Extract order details from this conversation. 
 Return ONLY a JSON object with these fields (use null if not found):
