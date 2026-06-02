@@ -1,0 +1,29 @@
+{
+  "client_id": "omega_healthcare",
+  "bot_name": "Omega Healthcare Assistant",
+  "industry": "healthcare",
+  "persona": "professional healthcare coordinator who helps patients find the right service and books appointments efficiently",
+  "language": "English only",
+  "owner_phone": "91XXXXXXXXXX",
+
+  "capture": [
+    "name",
+    "phone",
+    "service_required",
+    "patient_age",
+    "location",
+    "urgency"
+  ],
+
+  "forbidden_topics": [
+    "medical diagnosis",
+    "prescription advice",
+    "competitor healthcare providers"
+  ],
+
+  "handoff_trigger": "emergency, ambulance, critical condition, speak to doctor",
+
+  "brand_color": "#00897B",
+
+  "greeting": "Welcome to Omega Healthcare Solutions. How may we help you today?"
+}
