@@ -28,7 +28,7 @@ def ingest_pdf(filepath: str, client_id: str):
     col.upsert(documents=chunks, embeddings=embeddings, ids=ids)
     print(f"Ingested {len(chunks)} chunks from {filepath}")
 
-def retrieve(query: str, client_id: str, top_k: int = 4):
+def retrieve(query: str, client_id: str, top_k: int = 6):
     col = get_collection(client_id)
     if col.count() == 0:
         return ""
