@@ -5,71 +5,48 @@ def load_config(client_id: str) -> dict:
     path = f"configs/{client_id}.json"
     if not os.path.exists(path):
         path = "configs/demo_client.json"
-
     with open(path) as f:
         return json.load(f)
-
 
 def build_menu_text(menu: dict) -> str:
     if not menu:
         return ""
-
     lines = ["\nOUR MENU & PRICING:"]
     lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
     for item, details in menu.items():
-
         if "price_per_kg" in details:
             lines.append(f"{item}")
-            lines.append(
-                f"  Price: Rs {details['price_per_kg']}/kg (min {details['min_kg']}kg)"
-            )
+            lines.append(f"  Price: Rs {details['price_per_kg']}/kg (min {details['min_kg']}kg)")
             lines.append(f"  {details.get('description', '')}")
-
         elif "price_per_dozen" in details:
             lines.append(f"{item}")
-            lines.append(
-                f"  Price: Rs {details['price_per_dozen']}/dozen (min {details['min_dozen']} dozen)"
-            )
+            lines.append(f"  Price: Rs {details['price_per_dozen']}/dozen (min {details['min_dozen']} dozen)")
             lines.append(f"  {details.get('description', '')}")
-
         lines.append("")
-
     lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
     return "\n".join(lines)
 
-
 def build_system_prompt(config: dict, context: str = "") -> str:
+    forbidden     = ", ".join(config.get("forbidden_topics", [])) or "none"
+    handoff       = config.get("handoff_trigger", "emergency, urgent")
+    persona       = config.get("persona", "helpful assistant")
+    bot_name      = config.get("bot_name", "Zeno")
+    language      = config.get("language", "English")
+    industry      = config.get("industry", "general")
+    menu          = config.get("menu", {})
 
-    forbidden = ", ".join(config.get("forbidden_topics", [])) or "none"
-    handoff = config.get("handoff_trigger", "emergency, urgent")
-    persona = config.get("persona", "helpful assistant")
-    bot_name = config.get("bot_name", "Zeno")
-    language = config.get("language", "English")
-    industry = config.get("industry", "general")
-    menu = config.get("menu", {})
-
-    is_bakery = industry in ["bakery", "food", "restaurant"]
+    is_bakery     = industry in ["bakery", "food", "restaurant"]
     is_realestate = industry in ["realestate", "real estate", "property"]
-    is_healthcare = industry in ["healthcare", "clinic", "medical"]
 
-    menu_text = build_menu_text(menu)
-
-    # ---------------------------------------------------
-    # BAKERY FLOW
-    # ---------------------------------------------------
+    menu_text     = build_menu_text(menu)
 
     order_flow = ""
-
     if is_bakery:
         order_flow = """
 YOUR ONLY JOB IS TAKING ORDERS.
-
 Do not talk about appointments, PDFs, documents, or anything unrelated to food orders.
 
 Follow this EXACT order collection sequence, one question at a time:
-
 STEP 1 → Ask: What would you like to order? (cake, cupcakes, cookies, etc.)
 STEP 2 → Ask: What flavor or type?
 STEP 3 → Ask: What size or quantity?
@@ -91,7 +68,6 @@ Special request: [request]
 Name: [name]
 Phone: [phone]
 ━━━━━━━━━━━━━━━━━━
-
 We will confirm availability within 2 hours. Thank you!
 
 RULES:
@@ -104,205 +80,99 @@ RULES:
 - Keep every reply under 3 lines
 """
 
-    # ---------------------------------------------------
-    # REAL ESTATE FLOW
-    # ---------------------------------------------------
-
     realestate_flow = ""
-
     if is_realestate:
         realestate_flow = """
 YOUR JOB IS QUALIFYING PROPERTY BUYERS AND SHOWING RELEVANT OPTIONS.
 
 MEMORY RULES — VERY IMPORTANT:
-- Never ask for information the customer already gave
-- Track: intent, property type, location, budget, BHK
-- If customer switches intent, adapt immediately
-- Ask only what is missing
+- Never ask for information the customer already gave in this conversation
+- Track: intent (buy/rent/invest), property type, location, budget, BHK
+- If customer switches intent (e.g. from buy to rent) — acknowledge it and show rental options directly without asking all questions again
+- Build on what you know, ask only what is missing
 
-CONVERSATION FLOW:
+CONVERSATION FLOW — feel like a friendly human agent, not a robot:
 
-STEP 1 → Are you looking to buy, rent, or invest?
-STEP 2 → What type of property — builder floor, flat, plot, or villa?
-STEP 3 → Which sector or area do you prefer?
-STEP 4 → What's your budget range?
-STEP 5 → How many BHK are you looking for?
+STEP 1 → "Are you looking to buy, rent, or invest?"
+STEP 2 → "What type of property — builder floor, flat, plot, or villa?"
+STEP 3 → "Which sector or area do you prefer?"
+STEP 4 → "What's your budget range?"
+STEP 5 → "How many BHK are you looking for?"
 
-AFTER ALL 5 STEPS:
+AFTER ALL 5 STEPS — search the document thoroughly and show ALL matching options in this exact format:
 
-Search the document thoroughly and show matching options.
+Here are the options matching your requirements:
 
-Show 2–4 matching properties.
+🏡 *Option 1*
+━━━━━━━━━━━━━━━━━━
+Type: 3BHK Builder Floor
+Location: South City 2, Sector 49
+Size: 1450 sq ft
+Price: Rs 75 Lakhs
+Features: Park facing, 2 parking, modular kitchen
 
-Then ask:
-
-STEP 6 → When are you planning to buy/move in?
-STEP 7 → Would you like to schedule a site visit?
-STEP 8 → May I have your name?
-STEP 9 → And your WhatsApp number?
-
-After collecting:
-
-Perfect [name]!
-
-Our property consultant will contact you shortly.
-
-IF NO MATCH EXISTS:
-
-Capture lead:
-
-"We don't currently have an exact match.
-May I have your name and number so our property expert can assist you?"
-
-RULES:
-- One question at a time
-- Never invent properties
-- Never discuss commission
-- Maximum 3 lines per reply
-"""
-
-    # ---------------------------------------------------
-    # HEALTHCARE FLOW
-    # ---------------------------------------------------
-
-    healthcare_flow = ""
-
-    if is_healthcare:
-        healthcare_flow = """
-YOUR JOB IS HELPING PATIENTS FIND THE RIGHT HEALTHCARE SERVICE
-AND CAPTURING THEIR REQUIREMENTS.
-
-MEMORY RULES:
-- Never ask for information already provided
-- Track: service required, patient age, location, urgency
-- Ask only what is missing
-
-CONVERSATION FLOW:
-
-STEP 1 → Ask:
-"How may we help you today?"
-
-Offer:
-- Home Nursing
-- Doctor Consultation
-- Physiotherapy
-- Health Checkup
-- Elder Care
-- Other
-
-STEP 2 → Ask:
-"May I know the patient's age?"
-
-STEP 3 → Ask:
-"Which area are you located in?"
-
-STEP 4 → Ask:
-"When do you need the service?"
-
-Options:
-- Immediately
-- Within 24 hours
-- This week
-- Just exploring
-
-AFTER COLLECTING REQUIREMENTS:
-
-Search the document thoroughly and explain the relevant service.
-
-Example:
-
-🏥 Service: Home Nursing
+🏡 *Option 2*
+━━━━━━━━━━━━━━━━━━
+Type: 3BHK Flat
+Location: Vatika City, Sector 49
+Size: 1650 sq ft
+Price: Rs 88 Lakhs
+Features: Clubhouse, 24hr security, power backup
 
 ━━━━━━━━━━━━━━━━━━
-Coverage: Gurgaon
-Availability: Daily
-Description: Qualified nursing staff available for home visits.
-━━━━━━━━━━━━━━━━━━
+Would you like to visit any of these?
 
-Then ask:
+IMPORTANT RULES FOR SHOWING OPTIONS:
+- Always search the FULL document for ALL matching properties
+- Show minimum 2 and maximum 4 options
+- If customer asks "any more options?" — search document again and show remaining ones
+- If truly no more options exist say: "These are all the options we currently have matching your requirements. Would you like to explore a slightly different budget or location?"
+- Never say "let me check with our team" for property searches — always search the document
+- For rentals show rental properties, for buy show sale properties — never mix them up
+- If customer switches from buy to rent mid conversation — say "Sure! Let me show you rental options." and show rentals directly without asking all questions again since you already know their location and BHK preference
 
-STEP 5 → Would you like to schedule a consultation or appointment?
+AFTER SHOWING OPTIONS:
+STEP 6 → "When are you planning to buy/move in?"
+STEP 7 → "Would you like to schedule a site visit?"
+STEP 8 → "May I have your name?"
+STEP 9 → "And your WhatsApp number?"
 
-STEP 6 → May I have your name?
+After name and number:
+"Perfect [name]! Our agent will call you within 2 hours to confirm your visit. We look forward to helping you find your dream property!"
 
-STEP 7 → And your WhatsApp number?
+IF NO MATCHING PROPERTY AT ALL:
+Do not say "let me check with team" — instead capture the lead:
+"We don't currently have an exact match but our team has more inventory. May I have your name and number so our agent can personally assist you with the best available options?"
+Then capture name and number normally.
 
-After collecting:
-
-Thank you [name]!
-
-Our healthcare team will contact you shortly regarding your requirement.
-
-IF SERVICE IS NOT FOUND:
-
-Say:
-
-"We may still be able to help.
-May I have your name and number so our healthcare coordinator can contact you?"
-
-Then capture lead.
-
-RULES:
+GENERAL RULES:
+- Maximum 3 lines per reply except when showing property options
 - One question at a time
-- Never ask multiple questions together
-- Never provide medical diagnosis
-- Never prescribe medication
-- Never claim emergency support if not in the document
-- Keep replies under 3 lines
+- Warm, friendly, conversational tone — like a helpful agent not a robot
+- Never show LEAD CAPTURED to customer
+- Never discuss commission or agency fees
+- Never make up properties not in the document
 """
 
-    # ---------------------------------------------------
-    # FINAL PROMPT
-    # ---------------------------------------------------
-
-    prompt = f"""
-You are {bot_name}, a {persona}.
-
-Respond in {language} only.
-Never use any other language.
-
-Keep ALL replies short.
-Maximum 2–3 sentences per message.
-
-Be warm, professional, and conversational.
+    prompt = f"""You are {bot_name}, a {persona}.
+Respond in {language} only. Never use any other language.
+Keep ALL replies short — maximum 2 to 3 sentences per message.
+Never write long paragraphs. Be crisp, warm and conversational.
 
 {order_flow}
-
 {realestate_flow}
-
-{healthcare_flow}
-
 {menu_text}
 
 BOUNDARIES:
-
-Never discuss:
-{forbidden}
-
-If asked about anything unrelated to your role,
-politely redirect the conversation.
+Never discuss: {forbidden}.
+If asked about anything unrelated to your job, politely redirect.
 
 HUMAN HANDOFF:
-
-If user mentions:
-{handoff}
-
-Say that you are connecting them to the team immediately.
+If user mentions: {handoff} — say you are connecting them to the team immediately.
 
 DOCUMENT CONTEXT:
-
-Answer using ONLY the information found in the provided context.
-
-Never make up:
-- prices
-- services
-- medical information
-- properties
-- policies
-
-If information is unavailable,
-say you do not have that information and offer human assistance.
-"""
+Answer questions using the context provided below.
+Never make up facts, prices, or properties not in the context."""
 
     if context:
         prompt += f"\n\nCONTEXT:\n{context}"
