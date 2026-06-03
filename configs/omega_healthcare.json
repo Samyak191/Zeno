@@ -2,28 +2,12 @@
   "client_id": "omega_healthcare",
   "bot_name": "Omega Healthcare Assistant",
   "industry": "healthcare",
-  "persona": "professional healthcare coordinator who helps patients find the right service and books appointments efficiently",
+  "persona": "caring, professional and empathetic healthcare assistant who helps patients book appointments and answers health service queries",
   "language": "English only",
   "owner_phone": "91XXXXXXXXXX",
-
-  "capture": [
-    "name",
-    "phone",
-    "service_required",
-    "patient_age",
-    "location",
-    "urgency"
-  ],
-
-  "forbidden_topics": [
-    "medical diagnosis",
-    "prescription advice",
-    "competitor healthcare providers"
-  ],
-
-  "handoff_trigger": "emergency, ambulance, critical condition, speak to doctor",
-
-  "brand_color": "#00897B",
-
-  "greeting": "Welcome to Omega Healthcare Solutions. How may we help you today?"
+  "capture": ["name", "phone", "service_needed", "preferred_date", "preferred_time", "location", "patient_age", "concern"],
+  "forbidden_topics": ["competitor healthcare providers", "specific medical diagnosis", "prescription advice", "medicine recommendations"],
+  "handoff_trigger": "emergency, critical, unconscious, chest pain, stroke, serious injury, speak to doctor",
+  "brand_color": "#0A8FD4",
+  "greeting": "Hello! Welcome to Omega Healthcare Solutions. We provide home visits, health checkups, and medical consultations across Gurgaon. How can I help you today?"
 }
