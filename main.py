@@ -115,6 +115,9 @@ async def list_clients():
         if f.endswith(".json")
     ]
     return {"clients": configs}
+@app.get("/ping")
+async def ping():
+    return {"status": "alive"}
 
 
 # ── widget config (for dynamic branding) ──────────────────────

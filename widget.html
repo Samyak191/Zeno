@@ -360,14 +360,21 @@ loadConfig();
     form.append('client_id', clientId);
 
     try {
-      const res  = await fetch('/chat', { method: 'POST', body: form });
+      const controller = new AbortController();
+      const timeout    = setTimeout(() => controller.abort(), 30000);
+      const res        = await fetch('/chat', { method: 'POST', body: form, signal: controller.signal });
+      clearTimeout(timeout);
       const data = await res.json();
       hideTyping();
       addMsg(data.reply, 'bot');
-    } catch(e) {
+}     catch(e) {
       hideTyping();
-      addMsg('Something went wrong. Please try again.', 'bot');
-    }
+      if (e.name === 'AbortError') {
+        addMsg('Taking a bit longer than usual — please send your message again.', 'bot');
+  }     else {
+        addMsg('Something went wrong. Please try again.', 'bot');
+  }
+}
     isTyping = false;
   }
 </script>
